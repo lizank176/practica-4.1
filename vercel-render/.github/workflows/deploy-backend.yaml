@@ -1,0 +1,62 @@
+name: CI/CD Backend Flask
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'backend/**'  # Solo se ejecuta si cambias cosas en la carpeta backend
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'backend/**'
+
+jobs:
+  # --- TRABAJO 1: INTEGRACIÓN CONTINUA (TESTS) ---
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout del código
+      uses: actions/checkout@v4
+
+    - name: Configurar Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - name: Instalar dependencias
+      working-directory: ./backend  # IMPORTANTE: Entrar en la carpeta backend
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Ejecutar Tests
+      working-directory: ./backend  # IMPORTANTE: Ejecutar desde backend
+      run: |
+        # Ejecuta los tests que creamos en backend/tests
+        python -m unittest discover -s tests
+
+  # --- TRABAJO 2: ENTREGA CONTINUA (DOCKER HUB) ---
+  build-and-push:
+    needs: test  # Solo si los tests pasan
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' # Solo subir a Docker Hub si es rama main
+
+    steps:
+    - name: Checkout del código
+      uses: actions/checkout@v4
+
+    - name: Login en Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Construir y subir imagen
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend    # IMPORTANTE: El contexto es la carpeta backend
+        file: ./backend/Dockerfile
+        push: true
+        # Cambia 'tu_usuario' por tu user de Docker Hub
+        tags: ${{ secrets.DOCKER_USERNAME }}/ci-cd-flask-backend:latest
